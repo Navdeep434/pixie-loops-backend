@@ -10,6 +10,7 @@ use App\Http\Controllers\Api\V1\Admin\AdminCustomRequestController;
 use App\Http\Controllers\Api\V1\Admin\AdminContentController;
 use App\Http\Controllers\Api\V1\Admin\AdminSettingsController;
 use App\Http\Controllers\Api\V1\AuthController;
+use App\Http\Controllers\Api\V1\Crochet\ProductController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -86,6 +87,10 @@ Route::middleware(['auth:admin', 'role:admin'])
 | CUSTOMER PROTECTED ROUTES
 |--------------------------------------------------------------------------
 */
+
+Route::get('/products', [ProductController::class, 'index']);
+Route::get('/products/{id}', [ProductController::class, 'show']);
+Route::get('/categories', [ProductController::class, 'categories']);
 
 Route::middleware(['auth:web', 'role:customer'])
     ->prefix('customer')
