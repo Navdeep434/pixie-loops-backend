@@ -11,11 +11,8 @@ use Illuminate\Validation\ValidationException;
 
 class AuthController extends Controller
 {
-    /**
-     * ===============================
-     * CUSTOMER REGISTER (web guard)
-     * ===============================
-     */
+    // ── Customer Register ─────────────────────────────────────────────────────
+
     public function register(Request $request)
     {
         $validated = $request->validate([
@@ -38,6 +35,8 @@ class AuthController extends Controller
 
         Auth::guard('web')->login($user);
 
+        // Regenerate session AND regenerate CSRF token so the
+        // frontend's next request gets the fresh token via cookie
         $request->session()->regenerate();
 
         return response()->json([
@@ -47,11 +46,8 @@ class AuthController extends Controller
         ]);
     }
 
-    /**
-     * ===============================
-     * CUSTOMER LOGIN (web guard)
-     * ===============================
-     */
+    // ── Customer Login ────────────────────────────────────────────────────────
+
     public function login(Request $request)
     {
         $credentials = $request->validate([
@@ -73,11 +69,7 @@ class AuthController extends Controller
 
         if (!$user->is_active) {
             Auth::guard('web')->logout();
-
-            return response()->json([
-                'success' => false,
-                'message' => 'Account deactivated',
-            ], 403);
+            return response()->json(['success' => false, 'message' => 'Account deactivated'], 403);
         }
 
         $request->session()->regenerate();
@@ -89,11 +81,8 @@ class AuthController extends Controller
         ]);
     }
 
-    /**
-     * ===============================
-     * ADMIN LOGIN (admin guard)
-     * ===============================
-     */
+    // ── Admin Login ───────────────────────────────────────────────────────────
+
     public function adminLogin(Request $request)
     {
         $credentials = $request->validate([
@@ -102,22 +91,14 @@ class AuthController extends Controller
         ]);
 
         if (!Auth::guard('admin')->attempt($credentials)) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Invalid credentials',
-            ], 401);
+            return response()->json(['success' => false, 'message' => 'Invalid credentials'], 401);
         }
 
         $user = Auth::guard('admin')->user();
 
-        // Ensure user has admin role
         if (!$user->hasRole('admin')) {
             Auth::guard('admin')->logout();
-
-            return response()->json([
-                'success' => false,
-                'message' => 'Unauthorized',
-            ], 403);
+            return response()->json(['success' => false, 'message' => 'Unauthorized'], 403);
         }
 
         $request->session()->regenerate();
@@ -129,11 +110,8 @@ class AuthController extends Controller
         ]);
     }
 
-    /**
-     * ===============================
-     * CUSTOMER LOGOUT
-     * ===============================
-     */
+    // ── Customer Logout ───────────────────────────────────────────────────────
+
     public function logout(Request $request)
     {
         Auth::guard('web')->logout();
@@ -141,17 +119,11 @@ class AuthController extends Controller
         $request->session()->invalidate();
         $request->session()->regenerateToken();
 
-        return response()->json([
-            'success' => true,
-            'message' => 'Customer logout successful',
-        ]);
+        return response()->json(['success' => true, 'message' => 'Logged out']);
     }
 
-    /**
-     * ===============================
-     * ADMIN LOGOUT
-     * ===============================
-     */
+    // ── Admin Logout ──────────────────────────────────────────────────────────
+
     public function adminLogout(Request $request)
     {
         Auth::guard('admin')->logout();
@@ -159,60 +131,49 @@ class AuthController extends Controller
         $request->session()->invalidate();
         $request->session()->regenerateToken();
 
-        return response()->json([
-            'success' => true,
-            'message' => 'Admin logout successful',
-        ]);
+        return response()->json(['success' => true, 'message' => 'Admin logged out']);
     }
 
-    /**
-     * ===============================
-     * CUSTOMER ME
-     * ===============================
-     */
+    // ── Customer Me ───────────────────────────────────────────────────────────
+
     public function me()
     {
         $user = Auth::guard('web')->user();
 
         if (!$user) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Unauthenticated',
-            ], 401);
+            return response()->json(['success' => false, 'message' => 'Unauthenticated'], 401);
         }
 
-        return response()->json([
-            'success' => true,
-            'user'    => $this->userResponse($user),
-        ]);
+        return response()->json(['success' => true, 'user' => $this->userResponse($user)]);
     }
 
-    /**
-     * ===============================
-     * ADMIN ME
-     * ===============================
-     */
+    // ── Admin Me ──────────────────────────────────────────────────────────────
+
     public function adminMe()
     {
         $user = Auth::guard('admin')->user();
 
         if (!$user) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Unauthenticated',
-            ], 401);
+            return response()->json(['success' => false, 'message' => 'Unauthenticated'], 401);
         }
 
-        return response()->json([
-            'success' => true,
-            'user'    => $this->userResponse($user),
-        ]);
+        return response()->json(['success' => true, 'user' => $this->userResponse($user)]);
     }
 
-    /**
-     * Standard user response
-     */
-    private function userResponse(User $user)
+    // ── CSRF Refresh endpoint ─────────────────────────────────────────────────
+    // Call GET /api/auth/csrf-refresh to get a fresh CSRF token without
+    // hitting the Sanctum endpoint. Useful for long-lived SPAs.
+
+    public function csrfRefresh(Request $request)
+    {
+        $request->session()->regenerateToken();
+
+        return response()->json(['success' => true]);
+    }
+
+    // ── Helpers ───────────────────────────────────────────────────────────────
+
+    private function userResponse(User $user): array
     {
         return [
             'id'          => $user->id,
@@ -225,7 +186,7 @@ class AuthController extends Controller
         ];
     }
 
-    private function getUserPermissions(User $user)
+    private function getUserPermissions(User $user): array
     {
         return $user->roles
             ->flatMap(fn ($role) => $role->permissions->pluck('slug'))

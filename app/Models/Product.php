@@ -47,4 +47,15 @@ class Product extends Model
     {
         return $this->hasMany(Review::class);
     }
+
+    public function options()
+    {
+        return $this->hasMany(ProductOption::class)
+                    ->whereNull('deleted_at');
+    }
+
+    public function getFinalPriceAttribute(): float
+    {
+        return $this->sale_price ?? $this->price;
+    }
 }

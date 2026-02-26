@@ -27,7 +27,6 @@ class ProductController extends Controller
             match ($request->sort) {
                 'price-low'  => $query->orderBy('price', 'asc'),
                 'price-high' => $query->orderBy('price', 'desc'),
-                'rating'     => $query->orderBy('id', 'desc'), // replace with rating col if you have one
                 'name'       => $query->orderBy('name', 'asc'),
                 default      => $query->latest(),
             };
@@ -39,20 +38,20 @@ class ProductController extends Controller
 
         return response()->json([
             'success' => true,
-            'data'    => $products->map(fn($p) => $this->formatProduct($p)),
+            'data'    => $products->map(fn($p) => $this->formatProductSummary($p)),
         ]);
     }
 
     // GET /products/{id}
     public function show($id)
     {
-        $product = Product::with(['category', 'images'])
+        $product = Product::with(['category', 'images', 'options.values'])
             ->where('status', true)
             ->findOrFail($id);
 
         return response()->json([
             'success' => true,
-            'product' => $this->formatProduct($product),
+            'product' => $this->formatProductDetail($product),
         ]);
     }
 
@@ -71,9 +70,9 @@ class ProductController extends Controller
         ]);
     }
 
-    // ─── Helpers ──────────────────────────────────────────────────────────────
+    // ─── Formatters ───────────────────────────────────────────────────────────
 
-    private function formatProduct(Product $product): array
+    private function formatProductSummary(Product $product): array
     {
         $primaryImage = $product->images->firstWhere('is_primary', true)
             ?? $product->images->first();
@@ -85,6 +84,7 @@ class ProductController extends Controller
             'description' => $product->description,
             'price'       => $product->price,
             'sale_price'  => $product->sale_price,
+            'final_price' => $product->final_price,
             'stock'       => $product->stock,
             'sku'         => $product->sku,
             'in_stock'    => $product->stock > 0,
@@ -95,12 +95,41 @@ class ProductController extends Controller
                 'slug' => $product->category->slug,
             ] : null,
             'image'  => $primaryImage?->image_url,
-            'images' => $product->images->map(fn($img) => [
-                'id'         => $img->id,
-                'url'        => $img->image_url,
-                'is_primary' => $img->is_primary,
-            ])->values()->toArray(),
+            'images' => $this->formatImages($product),
         ];
+    }
+
+    private function formatProductDetail(Product $product): array
+    {
+        return array_merge($this->formatProductSummary($product), [
+            'options' => $product->options->map(fn($option) => [
+                'id'             => $option->id,
+                'name'           => $option->name,
+                'type'           => $option->type,
+                'is_required'    => $option->is_required,
+                'min_value'      => $option->min_value,
+                'max_value'      => $option->max_value,
+                'price_per_unit' => $option->price_per_unit,
+                // number type has no predefined values — only price_per_unit
+                'values' => in_array($option->type, ['radio', 'dropdown', 'checkbox'])
+                    ? $option->values->map(fn($val) => [
+                        'id'             => $val->id,
+                        'label'          => $val->label,
+                        'value'          => $val->value,
+                        'price_modifier' => $val->price_modifier,
+                    ])->values()->toArray()
+                    : [],
+            ])->values()->toArray(),
+        ]);
+    }
+
+    private function formatImages(Product $product): array
+    {
+        return $product->images->map(fn($img) => [
+            'id'         => $img->id,
+            'url'        => $img->image_url,
+            'is_primary' => $img->is_primary,
+        ])->values()->toArray();
     }
 
     private function formatCategory(Category $category): array
